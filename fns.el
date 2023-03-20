@@ -16,6 +16,9 @@
   (assert (and (>= p 0.0) (<= p 1.0)) nil "probabilities must be between 0 and 1")
   (- (log p) (log (- 1 p))))
 
+(defun odds (p)
+  "Computes the odds from P."
+  (/ p (- 1 p)))
 
 (defun harmonic-mean (&rest xs)
   "Computes the harmonic mean of the XS."
@@ -53,6 +56,13 @@ Returns a list of flips as T and NIL."
   "Returns the divisors of N as a list."
   (let ((possible-factors (--unfold (unless (> it (sqrt n)) (cons it (1+ it))) 2)))
     (--filter (= (mod n it) 0) possible-factors)))
+
+(defun birthday-prob (bins attempts)
+  "Returns the likelihood of a collision for ATTEMPTS among BINS."
+  (if (> bins attempts)
+      (- 1.0 (exp (-reduce #'+ (--map (- (log (- bins attempts)) (log bins))
+                               (number-sequence 0 (- attempts 1))))))
+    1.0))
 
 (defun plist--without-r (plist keys res)
   (cond ((null plist) res)
@@ -173,6 +183,57 @@ For example '(:foo 12 :baz nil) yields '(\"--foo=12\" \"--baz=false\")."
   (let ((args (if (symbolp arg-or-list) (cons arg-or-list more-args)
                 arg-or-list)))
     (args--plist-to-r #'args--keyword-to-flag #'args--flag-value-to-string args)))
+
+(defun args-plist-to-urlparams (args)
+  "Returns a URL parameter string from plist ARGS."
+  (string-join
+   (--map (format "%s=%s"
+                  (args--keyword-to-var (car it))
+                  (url-hexify-string (args--vars-value-to-string (cadr it))))
+          (-partition 2 args))
+   "&"))
+
+(defun snake-case-symbol (sym)
+  "Return SYM as a snake_case version of itself; i.e., replace dashes with underscores."
+  (intern (replace-regexp-in-string "-" "_" (symbol-name sym))))
+
+(defun plist-snake-keys (plist)
+  "Returns PLIST with all the keys converted to snake-case"
+  (-flatten-n
+   1
+   (--map (list (snake-case-symbol (car it))
+                (let ((value (cadr it)))
+                  (cond ((and (listp value)
+                              (not (null value))
+                              (symbolp (car value)))
+                         (plist-snake-keys value))
+                        ((and (vectorp value)
+                              (length> value 0)
+                              (listp (aref value 0)))
+                         (apply #'vector (-map #'plist-snake-keys value)))
+                        (t value))))
+          (-partition 2 plist))))
+
+(defun kebab-case-symbol (sym)
+  "Return SYM as a kebab-case version of itself; i.e., replace underscores with dashes."
+  (intern (replace-regexp-in-string "_" "-" (symbol-name sym))))
+
+(defun plist-kebab-keys (plist)
+  "Returns PLIST with all the keys converted to kebab-case"
+  (-flatten-n
+   1
+   (--map (list (kebab-case-symbol (car it))
+                (let ((value (cadr it)))
+                  (cond ((and (listp value)
+                              (not (null value))
+                              (symbolp (car value)))
+                         (plist-kebab-keys value))
+                        ((and (vectorp value)
+                              (length> value 0)
+                              (listp (aref value 0)))
+                         (apply #'vector (-map #'plist-kebab-keys value)))
+                        (t value))))
+          (-partition 2 plist))))
 
 (defun symbols-to-flags (xs)
   "Produce an argument list from a mixed list XS of keywords and values."
@@ -299,5 +360,9 @@ POS can be `noun' or `adj' or whatever."
   "If VAL evaluates to anything but the empty string, then bind
 it to symbol 'it' and do BODY."
   `(let ((it ,val)) (unless (empty-stringp it) ,body)))
+
+(defun set-terminal-title (title)
+  "Renames the window title, at least in iTerm2"
+  (send-string-to-terminal (concat "\e]0;" title "\007")))
 
 (provide 'fns)
