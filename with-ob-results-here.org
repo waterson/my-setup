@@ -1,0 +1,138 @@
+#+property: header-args:elisp :lexical t
+
+Here's a hack that runs a timer to insert text into the current
+result.
+
+#+begin_src elisp
+  (let ((this-buffer (current-buffer))
+        (this-point (point)))
+    (cl-flet ((on-complete () (with-current-buffer this-buffer
+                             (goto-char this-point)
+                             (org-babel-insert-result "hi" '("replace")))))
+      (message "here %s" this-point)
+      (run-at-time
+       "3 sec"
+       nil
+       #'on-complete)))
+#+end_src
+
+#+RESULTS:
+: hi
+
+Here's an attempt to generalize that into something reusable.
+
+#+begin_src elisp
+  (defmacro with-ob-results-here (body)
+    "Runs an asynchronous function with a callback INSERT-RESULT that can be used to insert the results into the current cell's RESULTS buffer."
+    `(let ((this-buffer (current-buffer))
+           (this-point (point)))
+       (cl-flet ((insert-result
+                  (result)
+                  (save-excursion
+                    (with-current-buffer this-buffer
+                      (goto-char this-point)
+                      (org-babel-insert-result result '("replace"))))))
+         ,body)))
+#+end_src
+
+#+RESULTS:
+: with-ob-results-here
+
+You still have to be pretty explicit: provide a callback etc etc.
+
+#+begin_src elisp
+  (with-ob-results-here
+   (run-at-time "3 sec" nil (lambda () (insert-result "hi"))))
+#+end_src
+
+#+RESULTS:
+: hi
+
+The same, but now using the ~request~ async HTTP function.
+
+#+begin_src elisp
+  (with-ob-results-here
+   (request
+     "https://maubi.net/"
+     :complete (lambda (&rest args) (insert-result (plist-get args :data)))))
+#+end_src
+
+#+RESULTS:
+#+begin_example
+<html>
+ <head>
+  <title>www.maubi.net</title>
+  <style>
+  pre {
+    margin-top: 0;
+    margin-bottom: 0;
+  }
+  body {
+    background: #111;
+    color: #585;
+  }
+  </style>
+  <script>
+  var USER_AGENT = navigator.userAgent.toLowerCase();
+  var IE = (USER_AGENT.indexOf("msie") != -1);
+  var CURRENT = "login";
+
+  function key(event)
+  {
+    var span = document.getElementById(CURRENT + "_text");
+    var keycode = IE ? window.event.keyCode : event.which;
+    switch (keycode) {
+    case 8:
+      span.innerHTML = span.innerHTML.substring(0, span.innerHTML.length - 1);
+      break;
+
+    case 13:
+      if (CURRENT == "login") {
+        document.getElementById("login_cursor").style.display = "none";
+        document.getElementById("password").style.display = "block";
+        CURRENT = "password";
+      }
+      else {
+        setTimeout(function() { document.location.href = ""; }, 1000);
+      }
+      break;
+
+    default:
+      if (CURRENT == "login")
+        span.innerHTML += String.fromCharCode(keycode).toLowerCase();
+      else
+        span.innerHTML += "*";
+      break;
+    }
+
+    return false;
+  }
+
+  function blink(on)
+  {
+    document.getElementById(CURRENT + "_cursor").style.display = on ? "inline" : "none";
+    setTimeout(function() { blink(!on) }, 500);
+  }
+  </script>
+ </head>
+ <body onload="blink(true);" onkeydown="return false;" onkeyup="return key(event);">
+  <pre>Welcome to <b>www.maubi.net</b>.</pre>
+  <pre><!--#exec cmd="/usr/games/fortune" --></pre>
+  <pre id="login">
+
+login: <b id="login_text"></b><b id="login_cursor">_</b></pre>
+  <pre id="password" style="display: none;">password: <b id="password_text"></b><b id="password_cursor">_</b></pre>
+
+  <!-- Global site tag (gtag.js) - Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=UA-129958496-1"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+
+    gtag('config', 'UA-129958496-1');
+  </script>
+ </body>
+</html>
+
+#+end_example
