@@ -60,9 +60,21 @@ Returns a list of flips as T and NIL."
 (defun birthday-prob (bins attempts)
   "Returns the likelihood of a collision for ATTEMPTS among BINS."
   (if (> bins attempts)
-      (- 1.0 (exp (-reduce #'+ (--map (- (log (- bins attempts)) (log bins))
-                               (number-sequence 0 (- attempts 1))))))
+      (->> (number-sequence 0 (- attempts 1))
+           (--map (log (- bins (* 1.0 it))))  ;; log(bins - ix)
+           (--map (- it (log bins)))          ;; log(bins - ix) - log(bins) = log((bins - ix) / bins)
+           (apply #'+)
+           (exp)                              ;; back to prob of no collision
+           (- 1.0)                            ;; to chance of collision
+           )
     1.0))
+
+(defun plist-with (keys-to-keep plist)
+  "Returns PLIST with the specified KEYS-TO-KEEP."
+  (--> plist
+       (-partition 2 it)
+       (--filter (member (car it) keys-to-keep) it)
+       (-flatten it)))
 
 (defun plist--without-r (plist keys res)
   (cond ((null plist) res)
@@ -78,6 +90,14 @@ KEYS-TO-REMOVE can either be a single key (i.e., a symbol) or a list."
   (let ((keys (if (symbolp keys-to-remove) (list keys-to-remove) keys-to-remove)))
     (plist--without-r plist keys nil)))
 
+(defun plist-drop (plist key)
+  "Returns PLIST without KEY.
+
+All instances of KEY are removed. PLIST is not modified."
+  (->> (-partition 2 plist)
+       (--remove (eq (car it) key))
+       (-flatten-n 1)
+       ))
 
 (defun plist--merge-r (old new res)
   (if (null old)
@@ -116,6 +136,10 @@ For example:
         (append (plist-flatten head) (plist-flatten tail)))
        (t
         (error "unexpected plist structure"))))))
+
+(defun plist-getf (key plist)
+  "Extract KEY from PLIST. (Flipped for chaining.)"
+  (plist-get plist key))
 
 (defun plist-get-nonempty (plist key)
   "Extract a non-empty value from a property list.
@@ -363,6 +387,13 @@ it to symbol 'it' and do BODY."
 
 (defun set-terminal-title (title)
   "Renames the window title, at least in iTerm2"
+  (interactive "stitle: ")
   (send-string-to-terminal (concat "\e]0;" title "\007")))
+
+(defun display-ansi-colors ()
+  "Interpret the ANSI control sequences in the current buffer."
+  (interactive)
+  (let ((inhibit-read-only t))
+    (ansi-color-apply-on-region (point-min) (point-max))))
 
 (provide 'fns)
