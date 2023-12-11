@@ -1,6 +1,4 @@
 ;; -*- mode: lisp -*-
-(add-to-list 'load-path "~/src/lightsparkdev/users/waterson/lisp/")
-(add-to-list 'load-path "~/src/my-setup/")
 (add-to-list 'load-path "~/.emacs.d/lisp/")
 
 ;; To update packages
@@ -123,7 +121,6 @@
 
 ;; XXX might still need to load prettier-js into typescript mode?
 (require 'web-mode)
-;; (require 'prettier-js)
 (add-to-list 'auto-mode-alist '("\\.tsx\\'" . web-mode))
 (add-hook
  'web-mode-hook
@@ -178,15 +175,11 @@
 (setenv "EDITOR" (concat "emacsclient -s " server-name))
 (server-start)
 
-(add-to-list 'load-path "~/work/src/elisp")
-(require 'spark)
-(require 'bitcoin)
-
 (require 'vc-git)
 (setq
  eshell-prompt-function
  (lambda ()
-   (let ((kube-context (kubernetes-context))
+   (let (;; (kube-context (kubernetes-context))
          (virtual-env-name (-when-let (path (getenv "VIRTUAL_ENV"))
                              (--> path
                                   (split-string it "/")
@@ -232,3 +225,6 @@
 (with-eval-after-load 'flymake
   (require 'flymake-diagnostic-at-point)
   (add-hook 'flymake-mode-hook #'flymake-diagnostic-at-point-mode))
+(require 'typescript-mode)
+(require 'prettier-js)
+(add-to-list 'auto-mode-alist '("\\.tsx\\'" . typescript-mode))
